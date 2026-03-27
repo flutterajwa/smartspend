@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "492214147902",
+    "project_id": "midlaj-9895f",
+    "storage_bucket": "midlaj-9895f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:492214147902:android:b62ada5b179dc970acea6f",
+        "android_client_info": {
+          "package_name": "midlaj.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbIhY1B-qy8AZqXSNlAEe0lsspiHm86X0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

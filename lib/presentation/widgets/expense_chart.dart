@@ -28,8 +28,14 @@ class ExpenseChart extends StatelessWidget {
             value: entry.value,
             title: '${entry.key}\n₹${entry.value.toStringAsFixed(0)}',
             color: cat.color,
-            radius: 50,
-            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+            radius: 60,
+            titleStyle: const TextStyle(
+              fontSize: 12, 
+              fontWeight: FontWeight.bold, 
+              color: Colors.white,
+              shadows: [Shadow(color: Colors.black45, blurRadius: 2)],
+            ),
+            titlePositionPercentageOffset: 0.55,
           );
         }).toList(),
         centerSpaceRadius: 40,

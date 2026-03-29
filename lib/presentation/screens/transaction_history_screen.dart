@@ -11,12 +11,14 @@ class TransactionHistoryScreen extends StatefulWidget {
   final TransactionType? initialType;
   final int? initialMonth;
   final int? initialYear;
+  final PaymentMethod? initialPaymentMethod;
 
   const TransactionHistoryScreen({
     super.key, 
     this.initialType,
     this.initialMonth,
     this.initialYear,
+    this.initialPaymentMethod,
   });
 
   @override
@@ -28,6 +30,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   bool _isDescending = true;
   DateTime? _filterDate;
   TransactionType? _filterType;
+  PaymentMethod? _filterPaymentMethod;
   int? _filterMonth;
   int? _filterYear;
 
@@ -35,6 +38,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   void initState() {
     super.initState();
     _filterType = widget.initialType;
+    _filterPaymentMethod = widget.initialPaymentMethod;
     _filterMonth = widget.initialMonth;
     _filterYear = widget.initialYear;
   }
@@ -85,7 +89,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         matchesType = t.type == _filterType;
       }
 
-      return matchesSearch && matchesDate && matchesType;
+      bool matchesPayment = true;
+      if (_filterPaymentMethod != null) {
+        // For transfers, check both source (paymentMethod) and destination (toPaymentMethod)
+        if (t.type == TransactionType.transfer) {
+           matchesPayment = t.paymentMethod == _filterPaymentMethod || t.toPaymentMethod == _filterPaymentMethod;
+        } else {
+           matchesPayment = t.paymentMethod == _filterPaymentMethod;
+        }
+      }
+
+      return matchesSearch && matchesDate && matchesType && matchesPayment;
     }).toList();
 
     // Sorting
@@ -154,17 +168,38 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             ),
           ),
           
-          // Type Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          // Filter Chips (Type & Payment Method)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
+            child: Column(
               children: [
-                _buildTypeChip('All', null),
-                const SizedBox(width: 8),
-                _buildTypeChip('Income', TransactionType.income),
-                const SizedBox(width: 8),
-                _buildTypeChip('Expense', TransactionType.expense),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildTypeChip('All Type', null),
+                      const SizedBox(width: 8),
+                      _buildTypeChip('Income', TransactionType.income),
+                      const SizedBox(width: 8),
+                      _buildTypeChip('Expense', TransactionType.expense),
+                      const SizedBox(width: 8),
+                      _buildTypeChip('Transfer', TransactionType.transfer),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildPaymentMethodChip('All Source', null),
+                      const SizedBox(width: 8),
+                      _buildPaymentMethodChip('Cash Only', PaymentMethod.cash),
+                      const SizedBox(width: 8),
+                      _buildPaymentMethodChip('Account Only', PaymentMethod.account),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -215,7 +250,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                             ),
                           ),
                           ...transactions.map((t) {
-                            final category = TransactionCategory.getByName(t.category);
+                            final isTransfer = t.type == TransactionType.transfer;
+                            final category = isTransfer ? TransactionCategory.categories.firstWhere((c) => c.name == 'Others') : TransactionCategory.getByName(t.category);
+                            
                             return Dismissible(
                               key: Key(t.id),
                               direction: DismissDirection.endToStart,
@@ -252,15 +289,24 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 ),
                                 child: ListTile(
                                   leading: CircleAvatar(
-                                    backgroundColor: category.color.withOpacity(0.1),
-                                    child: Icon(category.icon, color: category.color, size: 20),
+                                    backgroundColor: isTransfer ? Colors.blue.withOpacity(0.1) : category.color.withOpacity(0.1),
+                                    child: Icon(
+                                      isTransfer ? Icons.swap_horiz_rounded : category.icon, 
+                                      color: isTransfer ? Colors.blue : category.color, 
+                                      size: 20
+                                    ),
                                   ),
-                                  title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  subtitle: Text('${category.name} • ${DateFormat('hh:mm a').format(t.date)}'),
+                                  title: Text(
+                                    isTransfer ? 'Transfer: ${t.paymentMethod.name.toUpperCase()} → ${t.toPaymentMethod?.name.toUpperCase()}' : t.title, 
+                                    style: const TextStyle(fontWeight: FontWeight.w600)
+                                  ),
+                                  subtitle: Text(
+                                    '${isTransfer ? 'Internal' : category.name} • ${t.paymentMethod.name.toUpperCase()} • ${DateFormat('hh:mm a').format(t.date)}'
+                                  ),
                                   trailing: Text(
-                                    '${t.type == TransactionType.income ? '+' : '-'} ₹${t.amount.toStringAsFixed(0)}',
+                                    '${t.type == TransactionType.income ? '+' : (t.type == TransactionType.expense ? '-' : '')} ₹${t.amount.toStringAsFixed(0)}',
                                     style: TextStyle(
-                                      color: t.type == TransactionType.income ? AppColors.income : AppColors.expense,
+                                      color: t.type == TransactionType.income ? AppColors.income : (t.type == TransactionType.expense ? AppColors.expense : Colors.blue),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
                                     ),
@@ -286,6 +332,20 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       selected: isSelected,
       onSelected: (val) {
         if (val) setState(() => _filterType = type);
+      },
+      selectedColor: AppColors.primary,
+      labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87),
+      showCheckmark: false,
+    );
+  }
+
+  Widget _buildPaymentMethodChip(String label, PaymentMethod? method) {
+    final isSelected = _filterPaymentMethod == method;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (val) {
+        if (val) setState(() => _filterPaymentMethod = method);
       },
       selectedColor: AppColors.primary,
       labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87),

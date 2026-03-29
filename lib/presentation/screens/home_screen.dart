@@ -173,6 +173,25 @@ class _HomeScreenState extends State<HomeScreen> {
             tp.totalIncome, 
             tp.totalExpense,
             [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+            Icons.account_balance_wallet_rounded,
+          ),
+          _buildSummaryCard(
+            'Cash Balance', 
+            tp.cashBalance, 
+            tp.transactions.where((t) => t.paymentMethod == PaymentMethod.cash && t.type == TransactionType.income).fold(0.0, (sum, t) => sum + t.amount), 
+            tp.transactions.where((t) => t.paymentMethod == PaymentMethod.cash && t.type == TransactionType.expense).fold(0.0, (sum, t) => sum + t.amount),
+            [Colors.orange, Colors.orangeAccent],
+            Icons.money_rounded,
+            paymentMethod: PaymentMethod.cash,
+          ),
+          _buildSummaryCard(
+            'Account Balance', 
+            tp.accountBalance, 
+            tp.transactions.where((t) => t.paymentMethod == PaymentMethod.account && t.type == TransactionType.income).fold(0.0, (sum, t) => sum + t.amount), 
+            tp.transactions.where((t) => t.paymentMethod == PaymentMethod.account && t.type == TransactionType.expense).fold(0.0, (sum, t) => sum + t.amount),
+            [Colors.blue, Colors.blueAccent],
+            Icons.account_balance_rounded,
+            paymentMethod: PaymentMethod.account,
           ),
         ],
       ),
@@ -530,7 +549,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSummaryCard(String title, double balance, double income, double expense, List<Color> colors) {
+  Widget _buildSummaryCard(String title, double balance, double income, double expense, List<Color> colors, IconData icon, {PaymentMethod? paymentMethod}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -543,7 +562,13 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(title, style: GoogleFonts.outfit(color: Colors.white70, fontSize: 16)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: GoogleFonts.outfit(color: Colors.white70, fontSize: 16)),
+              Icon(icon, color: Colors.white.withOpacity(0.5), size: 24),
+            ],
+          ),
           const SizedBox(height: 4),
           Text('₹${balance.toStringAsFixed(2)}', style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
           const Spacer(),
@@ -554,7 +579,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 '₹${income.toStringAsFixed(0)}', 
                 Icons.arrow_upward,
                 onTap: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (context) => const TransactionHistoryScreen(initialType: TransactionType.income),
+                  builder: (context) => TransactionHistoryScreen(
+                    initialType: TransactionType.income,
+                    initialPaymentMethod: paymentMethod,
+                  ),
                 )),
               ),
               const Spacer(),
@@ -563,7 +591,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 '₹${expense.toStringAsFixed(0)}', 
                 Icons.arrow_downward,
                 onTap: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (context) => const TransactionHistoryScreen(initialType: TransactionType.expense),
+                  builder: (context) => TransactionHistoryScreen(
+                    initialType: TransactionType.expense,
+                    initialPaymentMethod: paymentMethod,
+                  ),
                 )),
               ),
             ],
@@ -619,24 +650,53 @@ class _HomeScreenState extends State<HomeScreen> {
       itemCount: recent.length,
       itemBuilder: (context, index) {
         final t = recent[index];
-        final category = TransactionCategory.getByName(t.category);
+        final isTransfer = t.type == TransactionType.transfer;
+        final category = isTransfer ? TransactionCategory.categories.firstWhere((c) => c.name == 'Others') : TransactionCategory.getByName(t.category);
+        
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: category.color.withOpacity(0.1),
-              child: Icon(category.icon, color: category.color, size: 18),
+              backgroundColor: isTransfer ? Colors.blue.withOpacity(0.1) : category.color.withOpacity(0.1),
+              child: Icon(
+                isTransfer ? Icons.swap_horiz_rounded : category.icon, 
+                color: isTransfer ? Colors.blue : category.color, 
+                size: 18
+              ),
             ),
-            title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(category.name),
+            title: Text(
+              isTransfer ? 'Transfer: ${t.paymentMethod.name.toUpperCase()} → ${t.toPaymentMethod?.name.toUpperCase()}' : t.title, 
+              style: const TextStyle(fontWeight: FontWeight.w600)
+            ),
+            subtitle: Row(
+              children: [
+                Text(isTransfer ? 'Internal Transfer' : category.name),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: t.paymentMethod == PaymentMethod.cash ? Colors.orange.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    t.paymentMethod.name.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10, 
+                      fontWeight: FontWeight.bold,
+                      color: t.paymentMethod == PaymentMethod.cash ? Colors.orange : Colors.blue,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '${t.type == TransactionType.income ? '+' : '-'} ₹${t.amount.toStringAsFixed(0)}',
+                  '${t.type == TransactionType.income ? '+' : (t.type == TransactionType.expense ? '-' : '')} ₹${t.amount.toStringAsFixed(0)}',
                   style: TextStyle(
-                    color: t.type == TransactionType.income ? AppColors.income : AppColors.expense,
+                    color: t.type == TransactionType.income ? AppColors.income : (t.type == TransactionType.expense ? AppColors.expense : Colors.blue),
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),

@@ -18,7 +18,7 @@ class LocalDB {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS transactions (
@@ -29,7 +29,9 @@ class LocalDB {
             category TEXT,
             type TEXT,
             date TEXT,
-            note TEXT
+            note TEXT,
+            paymentMethod TEXT,
+            toPaymentMethod TEXT
           )
         ''');
         await db.execute('''
@@ -53,6 +55,10 @@ class LocalDB {
               PRIMARY KEY (category, month, year)
             )
           ''');
+        }
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE transactions ADD COLUMN paymentMethod TEXT DEFAULT "account"');
+          await db.execute('ALTER TABLE transactions ADD COLUMN toPaymentMethod TEXT');
         }
       },
     );

@@ -21,7 +21,39 @@ class TransactionProvider extends ChangeNotifier {
       .where((t) => t.type == TransactionType.expense)
       .fold(0, (sum, t) => sum + t.amount);
 
-  double get balance => totalIncome - totalExpense;
+  double get cashBalance {
+    double income = _transactions
+        .where((t) => t.type == TransactionType.income && t.paymentMethod == PaymentMethod.cash)
+        .fold(0, (sum, t) => sum + t.amount);
+    double expense = _transactions
+        .where((t) => t.type == TransactionType.expense && t.paymentMethod == PaymentMethod.cash)
+        .fold(0, (sum, t) => sum + t.amount);
+    double transferOut = _transactions
+        .where((t) => t.type == TransactionType.transfer && t.paymentMethod == PaymentMethod.cash)
+        .fold(0, (sum, t) => sum + t.amount);
+    double transferIn = _transactions
+        .where((t) => t.type == TransactionType.transfer && t.toPaymentMethod == PaymentMethod.cash)
+        .fold(0, (sum, t) => sum + t.amount);
+    return income - expense - transferOut + transferIn;
+  }
+
+  double get accountBalance {
+    double income = _transactions
+        .where((t) => t.type == TransactionType.income && t.paymentMethod == PaymentMethod.account)
+        .fold(0, (sum, t) => sum + t.amount);
+    double expense = _transactions
+        .where((t) => t.type == TransactionType.expense && t.paymentMethod == PaymentMethod.account)
+        .fold(0, (sum, t) => sum + t.amount);
+    double transferOut = _transactions
+        .where((t) => t.type == TransactionType.transfer && t.paymentMethod == PaymentMethod.account)
+        .fold(0, (sum, t) => sum + t.amount);
+    double transferIn = _transactions
+        .where((t) => t.type == TransactionType.transfer && t.toPaymentMethod == PaymentMethod.account)
+        .fold(0, (sum, t) => sum + t.amount);
+    return income - expense - transferOut + transferIn;
+  }
+
+  double get balance => cashBalance + accountBalance;
 
   Future<void> fetchTransactions(String userId) async {
     _isLoading = true;
@@ -92,6 +124,8 @@ class TransactionProvider extends ChangeNotifier {
       type: transaction.type,
       date: transaction.date,
       note: transaction.note,
+      paymentMethod: transaction.paymentMethod,
+      toPaymentMethod: transaction.toPaymentMethod,
     );
 
     await LocalDB.insertTransaction(newTransaction);
@@ -127,6 +161,8 @@ class TransactionProvider extends ChangeNotifier {
     if (totalThisMonth > 0) {
       insights.add("Your total spending this month is **₹${totalThisMonth.toStringAsFixed(0)}**.");
     }
+
+    insights.add("Your current split: **Cash (₹${cashBalance.toStringAsFixed(0)})** and **Account (₹${accountBalance.toStringAsFixed(0)})**.");
 
     if (categoryTotals['Food'] != null && categoryTotals['Food']! > 5000) {
       insights.add("Tip: Consider cooking at home to save on Food expenses.");

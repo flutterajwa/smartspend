@@ -27,12 +27,20 @@ class TransactionHistoryScreen extends StatefulWidget {
 
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   String _searchQuery = "";
+  final TextEditingController _searchController = TextEditingController();
   bool _isDescending = true;
   DateTime? _filterDate;
   TransactionType? _filterType;
   PaymentMethod? _filterPaymentMethod;
+  List<String> _selectedCategories = [];
   int? _filterMonth;
   int? _filterYear;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -91,7 +99,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
       bool matchesPayment = true;
       if (_filterPaymentMethod != null) {
-        // For transfers, check both source (paymentMethod) and destination (toPaymentMethod)
         if (t.type == TransactionType.transfer) {
            matchesPayment = t.paymentMethod == _filterPaymentMethod || t.toPaymentMethod == _filterPaymentMethod;
         } else {
@@ -99,7 +106,12 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         }
       }
 
-      return matchesSearch && matchesDate && matchesType && matchesPayment;
+      bool matchesCategory = true;
+      if (_selectedCategories.isNotEmpty) {
+        matchesCategory = _selectedCategories.contains(t.category);
+      }
+
+      return matchesSearch && matchesDate && matchesType && matchesPayment && matchesCategory;
     }).toList();
 
     // Sorting
@@ -121,109 +133,116 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       ),
       body: Column(
         children: [
+          // Modern Search & Filter Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    onChanged: (val) => setState(() => _searchQuery = val),
-                    decoration: InputDecoration(
-                      hintText: 'Search...',
-                      prefixIcon: const Icon(Icons.search),
-                      filled: true,
-                      fillColor: Colors.grey.withOpacity(0.1),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (val) => setState(() => _searchQuery = val),
+                      decoration: InputDecoration(
+                        hintText: 'Search transactions...',
+                        prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                        suffixIcon: _searchQuery.isNotEmpty 
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18), 
+                              onPressed: () => setState(() {
+                                _searchController.clear();
+                                _searchQuery = "";
+                              }),
+                            ) 
+                          : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: (_filterDate != null || _filterMonth != null) ? AppColors.primary : Colors.grey.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: IconButton(
-                    icon: Icon(Icons.calendar_month, color: (_filterDate != null || _filterMonth != null) ? Colors.white : Colors.grey),
-                    onPressed: () async {
-                      if (_filterDate != null || _filterMonth != null) {
-                        setState(() {
-                          _filterDate = null;
-                          _filterMonth = null;
-                          _filterYear = null;
-                        });
-                      } else {
-                        final date = await showDatePicker(
-                          context: context, 
-                          initialDate: DateTime.now(), 
-                          firstDate: DateTime(2000), 
-                          lastDate: DateTime.now(),
-                        );
-                        if (date != null) setState(() => _filterDate = date);
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Filter Chips (Type & Payment Method)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildTypeChip('All Type', null),
-                      const SizedBox(width: 8),
-                      _buildTypeChip('Income', TransactionType.income),
-                      const SizedBox(width: 8),
-                      _buildTypeChip('Expense', TransactionType.expense),
-                      const SizedBox(width: 8),
-                      _buildTypeChip('Transfer', TransactionType.transfer),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildPaymentMethodChip('All Source', null),
-                      const SizedBox(width: 8),
-                      _buildPaymentMethodChip('Cash Only', PaymentMethod.cash),
-                      const SizedBox(width: 8),
-                      _buildPaymentMethodChip('Account Only', PaymentMethod.account),
-                    ],
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: _showFilterSheet,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: (_filterDate != null || _filterMonth != null || _filterType != null || _filterPaymentMethod != null || _selectedCategories.isNotEmpty) 
+                          ? AppColors.primary 
+                          : Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.tune_rounded, 
+                      color: (_filterDate != null || _filterMonth != null || _filterType != null || _filterPaymentMethod != null || _selectedCategories.isNotEmpty)
+                          ? Colors.white 
+                          : Colors.grey[600],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          
-          if (_filterDate != null || _filterMonth != null)
-             Padding(
-               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-               child: Row(
-                 children: [
-                   Chip(
-                     label: Text(_filterDate != null 
-                        ? 'Date: ${DateFormat('dd MMM yyyy').format(_filterDate!)}'
-                        : 'Month: ${DateFormat('MMMM yyyy').format(DateTime(_filterYear!, _filterMonth!))}'),
-                     onDeleted: () => setState(() {
-                       _filterDate = null;
-                       _filterMonth = null;
-                       _filterYear = null;
-                     }),
-                     deleteIconColor: Colors.red,
-                     backgroundColor: AppColors.primary.withOpacity(0.1),
-                   ),
-                 ],
-               ),
-             ),
+
+          // Active Filters
+          if (_hasActiveFilters())
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  if (_filterDate != null)
+                    _buildActiveFilterChip(
+                      'Date: ${DateFormat('dd MMM').format(_filterDate!)}', 
+                      () => setState(() => _filterDate = null)
+                    ),
+                  if (_filterMonth != null)
+                    _buildActiveFilterChip(
+                      'Month: ${DateFormat('MMM yyyy').format(DateTime(_filterYear!, _filterMonth!))}', 
+                      () => setState(() { _filterMonth = null; _filterYear = null; })
+                    ),
+                  if (_filterType != null)
+                    _buildActiveFilterChip(
+                      'Type: ${_filterType!.name.toUpperCase()}', 
+                      () => setState(() => _filterType = null)
+                    ),
+                  if (_filterPaymentMethod != null)
+                    _buildActiveFilterChip(
+                      'Source: ${_filterPaymentMethod!.name.toUpperCase()}', 
+                      () => setState(() => _filterPaymentMethod = null)
+                    ),
+                  ..._selectedCategories.map((cat) => 
+                    _buildActiveFilterChip(
+                      'Cat: $cat', 
+                      () => setState(() => _selectedCategories.remove(cat))
+                    )
+                  ),
+                  TextButton(
+                    onPressed: _clearAllFilters,
+                    child: const Text('Clear All', style: TextStyle(color: Colors.red, fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
           
           Expanded(
             child: filteredTransactions.isEmpty
@@ -325,31 +344,184 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
-  Widget _buildTypeChip(String label, TransactionType? type) {
-    final isSelected = _filterType == type;
+
+  bool _hasActiveFilters() {
+    return _filterDate != null || _filterMonth != null || _filterType != null || _filterPaymentMethod != null || _selectedCategories.isNotEmpty;
+  }
+
+  void _clearAllFilters() {
+    setState(() {
+      _filterDate = null;
+      _filterType = null;
+      _filterPaymentMethod = null;
+      _selectedCategories = [];
+      _filterMonth = null;
+      _filterYear = null;
+    });
+  }
+
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Filters', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  TextButton(
+                    onPressed: () {
+                      _clearAllFilters();
+                      setModalState(() {});
+                    },
+                    child: const Text('Reset', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              
+              const Text('Transaction Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  _modalChoiceChip('All', null, _filterType, (val) => setModalState(() => _filterType = null)),
+                  _modalChoiceChip('Income', TransactionType.income, _filterType, (val) => setModalState(() => _filterType = TransactionType.income)),
+                  _modalChoiceChip('Expense', TransactionType.expense, _filterType, (val) => setModalState(() => _filterType = TransactionType.expense)),
+                  _modalChoiceChip('Transfer', TransactionType.transfer, _filterType, (val) => setModalState(() => _filterType = TransactionType.transfer)),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              const Text('Payment Source', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  _modalChoiceChip('All', null, _filterPaymentMethod, (val) => setModalState(() => _filterPaymentMethod = null)),
+                  _modalChoiceChip('Cash', PaymentMethod.cash, _filterPaymentMethod, (val) => setModalState(() => _filterPaymentMethod = PaymentMethod.cash)),
+                  _modalChoiceChip('Account', PaymentMethod.account, _filterPaymentMethod, (val) => setModalState(() => _filterPaymentMethod = PaymentMethod.account)),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              const Text('Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 40,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: TransactionCategory.categories.length,
+                  itemBuilder: (context, index) {
+                    final cat = TransactionCategory.categories[index];
+                    final isSelected = _selectedCategories.contains(cat.name);
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: FilterChip(
+                        label: Text(cat.name, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : null)),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          setModalState(() {
+                            if (val) {
+                              _selectedCategories.add(cat.name);
+                            } else {
+                              _selectedCategories.remove(cat.name);
+                            }
+                          });
+                        },
+                        selectedColor: AppColors.primary,
+                        showCheckmark: false,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              const Text('Date Filter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today, size: 18),
+                      label: Text(_filterDate == null ? 'Select Date' : DateFormat('dd MMM yyyy').format(_filterDate!)),
+                      onPressed: () async {
+                        final date = await showDatePicker(
+                          context: context, 
+                          initialDate: _filterDate ?? DateTime.now(), 
+                          firstDate: DateTime(2000), 
+                          lastDate: DateTime.now(),
+                        );
+                        if (date != null) setModalState(() => _filterDate = date);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() {}); // Update main screen
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _modalChoiceChip<T>(String label, T? value, T? groupValue, Function(bool) onSelected) {
+    final isSelected = value == groupValue;
     return ChoiceChip(
-      label: Text(label),
+      label: Text(label, style: TextStyle(color: isSelected ? Colors.white : null, fontSize: 13)),
       selected: isSelected,
-      onSelected: (val) {
-        if (val) setState(() => _filterType = type);
-      },
+      onSelected: onSelected,
       selectedColor: AppColors.primary,
-      labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87),
       showCheckmark: false,
     );
   }
 
-  Widget _buildPaymentMethodChip(String label, PaymentMethod? method) {
-    final isSelected = _filterPaymentMethod == method;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (val) {
-        if (val) setState(() => _filterPaymentMethod = method);
-      },
-      selectedColor: AppColors.primary,
-      labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87),
-      showCheckmark: false,
+  Widget _buildActiveFilterChip(String label, VoidCallback onDelete) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: Chip(
+        label: Text(label, style: const TextStyle(fontSize: 11)),
+        onDeleted: onDelete,
+        deleteIcon: const Icon(Icons.close, size: 14),
+        backgroundColor: AppColors.primary.withOpacity(0.1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide.none),
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 }

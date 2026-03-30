@@ -13,6 +13,8 @@ import '../../data/models/budget_model.dart';
 import 'add_expense_screen.dart';
 import 'insights_screen.dart';
 import 'transaction_history_screen.dart';
+import 'debt_screen.dart';
+import '../providers/debt_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedFilter = 'Monthly';
   DateTimeRange? _customRange;
   DateTime _summaryMonth = DateTime.now();
+  String _selectedAverageCategory = 'All';
 
   @override
   void initState() {
@@ -43,12 +46,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning,';
+    if (hour < 17) return 'Good Afternoon,';
+    return 'Good Evening,';
+  }
+
   List<TransactionModel> _getFilteredTransactions(List<TransactionModel> transactions) {
     final now = DateTime.now();
     switch (_selectedFilter) {
       case 'Day':
         return transactions.where((t) => 
           t.date.day == now.day && t.date.month == now.month && t.date.year == now.year).toList();
+      case 'Week':
+        final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+        return transactions.where((t) => 
+          t.date.isAfter(startOfWeek.subtract(const Duration(seconds: 1)))).toList();
       case 'Yearly':
         return transactions.where((t) => t.date.year == now.year).toList();
       case 'Custom':
@@ -73,8 +87,8 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Welcome back,', style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey)),
-            Text(auth.user?.name ?? 'User', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(_getGreeting(), style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey)),
+            Text(auth.user?.name ?? 'User', style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold)),
           ],
         ),
         actions: const [],
@@ -86,15 +100,26 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Activity Summary', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Swipe for more', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+              const SizedBox(height: 12),
               _buildSummarySection(tp),
               const SizedBox(height: 20),
               _buildSpendingOverviewHeader(),
               const SizedBox(height: 12),
               _buildFilterChips(),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+              _buildQuickStatsData(filteredTransactions),
+              const SizedBox(height: 16),
               SizedBox(height: 250, child: ExpenseChart(transactions: filteredTransactions)),
               const SizedBox(height: 30),
+
               _buildBudgetSection(tp),
               const SizedBox(height: 30),
               _buildRecentTransactionsHeader(context),
@@ -141,6 +166,14 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (context) => const TransactionHistoryScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.handshake_outlined),
+            title: const Text('Debts'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const DebtScreen()));
             },
           ),
           const Divider(),
@@ -193,6 +226,17 @@ class _HomeScreenState extends State<HomeScreen> {
             Icons.account_balance_rounded,
             paymentMethod: PaymentMethod.account,
           ),
+          Consumer<DebtProvider>(
+            builder: (context, dp, child) => _buildSummaryCard(
+              'Net Debt Position', 
+              dp.totalToGet - dp.totalToGive, 
+              dp.totalToGet, 
+              dp.totalToGive,
+              [Colors.grey[800]!, Colors.black],
+              Icons.handshake_rounded,
+              isDebt: true,
+            ),
+          ),
         ],
       ),
     );
@@ -215,11 +259,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFilterChips() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
       child: Row(
         children: ['Day', 'Monthly', 'Yearly', 'Custom'].map((filter) {
           final isSelected = _selectedFilter == filter;
           return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
+            padding: const EdgeInsets.only(right: 10.0),
             child: ChoiceChip(
               label: Text(filter),
               selected: isSelected,
@@ -230,6 +275,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     firstDate: DateTime(2000), 
                     lastDate: DateTime.now(),
                     initialDateRange: _customRange,
+                    builder: (context, child) {
+                      return Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: ColorScheme.light(
+                            primary: AppColors.primary,
+                            onPrimary: Colors.white,
+                            onSurface: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
+                          ),
+                        ),
+                        child: child!,
+                      );
+                    },
                   );
                   if (range != null) {
                     setState(() {
@@ -242,10 +299,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               },
               selectedColor: AppColors.primary,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Theme.of(context).textTheme.bodyMedium?.color, 
-                fontSize: 13,
+              backgroundColor: Theme.of(context).cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: isSelected ? AppColors.primary : Colors.grey.withOpacity(0.1),
+                ),
               ),
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : Colors.grey[600], 
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              elevation: isSelected ? 4 : 0,
               showCheckmark: false,
             ),
           );
@@ -253,6 +319,128 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  Widget _buildQuickStatsData(List<TransactionModel> transactions) {
+    if (transactions.isEmpty) return const SizedBox.shrink();
+    
+    var expenses = transactions.where((t) => t.type == TransactionType.expense).toList();
+    if (expenses.isEmpty) return const SizedBox.shrink();
+
+    // Get all unique categories in this period that have expenses
+    final availableCategories = ['All', ...expenses.map((t) => t.category).toSet().toList()];
+
+    // Ensure the selected category still exists in the dropdown, otherwise reset to All
+    if (!availableCategories.contains(_selectedAverageCategory)) {
+      // Don't setState here during build, just override locally
+      _selectedAverageCategory = 'All';
+    }
+
+    if (_selectedAverageCategory != 'All') {
+      expenses = expenses.where((t) => t.category == _selectedAverageCategory).toList();
+    }
+    
+    final categoryExpense = expenses.fold(0.0, (sum, t) => sum + t.amount);
+
+    double average = 0;
+    String label = '';
+
+    if (_selectedFilter == 'Monthly' || _selectedFilter == 'Custom') {
+      int days = DateTime.now().day; // roughly defaults to month-to-date
+      if (_selectedFilter == 'Custom' && _customRange != null) {
+        days = _customRange!.end.difference(_customRange!.start).inDays + 1;
+      }
+      average = days > 0 ? (categoryExpense / days) : categoryExpense;
+      label = 'Daily Avg';
+    } else if (_selectedFilter == 'Yearly') {
+      int months = DateTime.now().month;
+      average = months > 0 ? (categoryExpense / months) : categoryExpense;
+      label = 'Monthly Avg';
+    }
+
+    if (average == 0 && categoryExpense == 0) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildCategoryDropdown(availableCategories),
+          Container(width: 1, height: 30, color: Colors.grey.withOpacity(0.2)),
+          _buildMiniStat(label, '₹${average.toStringAsFixed(0)}', Icons.calculate_rounded, AppColors.primary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryDropdown(List<String> categories) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), shape: BoxShape.circle),
+          child: const Icon(Icons.category_rounded, size: 16, color: Colors.orange),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Filter By', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            SizedBox(
+              height: 24,
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isDense: true,
+                  value: _selectedAverageCategory,
+                  icon: const Icon(Icons.arrow_drop_down_rounded, size: 20, color: Colors.grey),
+                  items: categories.map((cat) => DropdownMenuItem(
+                    value: cat,
+                    child: Text(cat, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold)),
+                  )).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                         _selectedAverageCategory = val;
+                      });
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value, IconData icon, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(value, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ],
+    );
+  }
+
 
   Widget _buildBudgetSection(TransactionProvider tp) {
     final categoriesWithBudgets = TransactionCategory.categories.where((cat) {
@@ -265,19 +453,51 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Budgets', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Monthly Budget', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text('Spending limits by category', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+            TextButton.icon(
               onPressed: () => _showSetBudgetDialog(tp),
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: Text('Adjust', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         if (categoriesWithBudgets.isEmpty)
-          Center(
-            child: TextButton(
-              onPressed: () => _showSetBudgetDialog(tp),
-              child: const Text('Set up your first budget'),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.withOpacity(0.1)),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.pie_chart_outline_rounded, size: 48, color: Colors.grey.withOpacity(0.3)),
+                const SizedBox(height: 12),
+                Text('No budgets set for this month', style: GoogleFonts.outfit(color: Colors.grey)),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => _showSetBudgetDialog(tp),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Start Budgeting'),
+                ),
+              ],
             ),
           )
         else
@@ -286,48 +506,128 @@ class _HomeScreenState extends State<HomeScreen> {
             final spending = tp.getCategorySpending(cat.name, _summaryMonth.month, _summaryMonth.year);
             final budget = tp.getBudgetAmount(cat.name, _summaryMonth.month, _summaryMonth.year);
             final isOverBudget = progress >= 1.0;
+            final percent = (progress * 100).clamp(0.0, 100.0).toInt();
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isOverBudget ? Colors.red.withOpacity(0.2) : Colors.transparent),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+              ),
               child: Column(
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Icon(cat.icon, size: 16, color: cat.color),
-                          const SizedBox(width: 8),
-                          Text(cat.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                        ],
-                      ),
-                      Text(
-                        '₹${spending.toStringAsFixed(0)} / ₹${budget.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 12, 
-                          color: isOverBudget ? Colors.red : Colors.grey,
-                          fontWeight: isOverBudget ? FontWeight.bold : FontWeight.normal,
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: cat.color.withOpacity(0.1),
+                          shape: BoxShape.circle,
                         ),
+                        child: Icon(cat.icon, size: 16, color: cat.color),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(cat.name, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text(
+                              isOverBudget ? 'Budget Exceeded!' : '${100 - percent}% remaining',
+                              style: TextStyle(color: isOverBudget ? Colors.red : Colors.grey, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => _showDeleteBudgetConfirm(tp, cat.name),
+                        icon: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.grey[400]),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '₹${spending.toStringAsFixed(0)}',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          Text(
+                            'of ₹${budget.toStringAsFixed(0)}',
+                            style: const TextStyle(color: Colors.grey, fontSize: 11),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 8,
-                      backgroundColor: Colors.grey.withOpacity(0.1),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        isOverBudget ? Colors.red : AppColors.primary,
+                  const SizedBox(height: 12),
+                  Stack(
+                    children: [
+                      Container(
+                        height: 8,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
-                    ),
+                      LayoutBuilder(
+                        builder: (context, constraints) => Container(
+                          height: 8,
+                          width: constraints.maxWidth * (progress.clamp(0.0, 1.0)),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: isOverBudget 
+                                ? [Colors.red, Colors.redAccent] 
+                                : [AppColors.primary, const Color(0xFF6366F1)],
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isOverBudget ? Colors.red : AppColors.primary).withOpacity(0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             );
           }),
       ],
+    );
+  }
+
+  void _showDeleteBudgetConfirm(TransactionProvider tp, String category) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Remove Budget', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to remove the budget for $category for ${DateFormat('MMMM yyyy').format(_summaryMonth)}?', 
+          style: GoogleFonts.outfit()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              await tp.deleteBudget(category, _summaryMonth.month, _summaryMonth.year);
+              if (mounted) Navigator.pop(context);
+            },
+            child: Text('Remove', style: GoogleFonts.outfit(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -549,7 +849,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSummaryCard(String title, double balance, double income, double expense, List<Color> colors, IconData icon, {PaymentMethod? paymentMethod}) {
+  Widget _buildSummaryCard(String title, double balance, double income, double expense, List<Color> colors, IconData icon, {
+    PaymentMethod? paymentMethod,
+    bool isDebt = false,
+  }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -575,10 +878,10 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             children: [
               _buildStat(
-                'Income', 
+                isDebt ? 'To Get' : (paymentMethod != null ? 'Income' : 'Monthly Income'), 
                 '₹${income.toStringAsFixed(0)}', 
                 Icons.arrow_upward,
-                onTap: () => Navigator.push(context, MaterialPageRoute(
+                onTap: isDebt ? null : () => Navigator.push(context, MaterialPageRoute(
                   builder: (context) => TransactionHistoryScreen(
                     initialType: TransactionType.income,
                     initialPaymentMethod: paymentMethod,
@@ -587,10 +890,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const Spacer(),
               _buildStat(
-                'Expenses', 
+                isDebt ? 'To Give' : (paymentMethod != null ? 'Expenses' : 'Monthly Expenses'), 
                 '₹${expense.toStringAsFixed(0)}', 
                 Icons.arrow_downward,
-                onTap: () => Navigator.push(context, MaterialPageRoute(
+                onTap: isDebt ? null : () => Navigator.push(context, MaterialPageRoute(
                   builder: (context) => TransactionHistoryScreen(
                     initialType: TransactionType.expense,
                     initialPaymentMethod: paymentMethod,

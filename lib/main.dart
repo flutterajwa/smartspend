@@ -8,9 +8,12 @@ import 'presentation/providers/debt_provider.dart';
 import 'presentation/screens/auth_screen.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/screens/splash_screen.dart';
+import 'package:in_app_update/in_app_update.dart';
+import 'core/utils/notification_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationHelper.initialize();
 
   runApp(
     MultiProvider(
@@ -30,14 +33,11 @@ class SmartSpendApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-
     return MaterialApp(
       title: 'SmartSpend AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: themeProvider.themeMode,
+      themeMode: ThemeMode.light,
       home: const AuthWrapper(),
       routes: {
         '/login': (context) => const AuthScreen(),
@@ -60,7 +60,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
+    _checkForUpdate();
     _loadSplash();
+  }
+
+  Future<void> _checkForUpdate() async {
+    try {
+      final info = await InAppUpdate.checkForUpdate();
+      if (info.updateAvailability == UpdateAvailability.updateAvailable) {
+        await InAppUpdate.performImmediateUpdate();
+      }
+    } catch (e) {
+      debugPrint('Update check/execution error: $e');
+    }
   }
 
   void _loadSplash() async {

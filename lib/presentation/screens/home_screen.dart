@@ -15,6 +15,12 @@ import 'insights_screen.dart';
 import 'transaction_history_screen.dart';
 import 'debt_screen.dart';
 import '../providers/debt_provider.dart';
+import 'recurring_transactions_screen.dart';
+import 'export_report_screen.dart';
+import 'budget_manager_screen.dart';
+import 'category_manager_screen.dart';
+import '../widgets/quick_add_bottom_sheet.dart';
+import '../../core/utils/notification_helper.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -34,7 +40,12 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshData();
+      _requestNotificationPermissions();
     });
+  }
+
+  Future<void> _requestNotificationPermissions() async {
+    await NotificationHelper.requestPermissions();
   }
 
   void _refreshData() {
@@ -130,7 +141,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddExpenseScreen())),
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => const QuickAddBottomSheet(),
+          );
+        },
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white, size: 32),
       ),
@@ -176,17 +194,37 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(context, MaterialPageRoute(builder: (context) => const DebtScreen()));
             },
           ),
-          const Divider(),
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, child) => SwitchListTile(
-              title: const Text('Dark Mode'),
-              secondary: Icon(
-                themeProvider.isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                color: themeProvider.isDarkMode ? Colors.amber : Colors.orange,
-              ),
-              value: themeProvider.isDarkMode,
-              onChanged: (val) => themeProvider.toggleTheme(val),
-            ),
+          ListTile(
+            leading: const Icon(Icons.autorenew_rounded),
+            title: const Text('Subscriptions / Recurring'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const RecurringTransactionsScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.share_rounded),
+            title: const Text('Export Reports'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ExportReportScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.account_balance_wallet_outlined),
+            title: const Text('Budget Manager'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const BudgetManagerScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.category_outlined),
+            title: const Text('Manage Categories'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const CategoryManagerScreen()));
+            },
           ),
         ],
       ),
@@ -461,7 +499,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             TextButton.icon(
-              onPressed: () => _showSetBudgetDialog(tp),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BudgetManagerScreen())),
               icon: const Icon(Icons.tune_rounded, size: 18),
               label: Text('Adjust', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
               style: TextButton.styleFrom(
@@ -489,7 +527,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text('No budgets set for this month', style: GoogleFonts.outfit(color: Colors.grey)),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () => _showSetBudgetDialog(tp),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BudgetManagerScreen())),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,

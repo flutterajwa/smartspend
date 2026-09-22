@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "492214147902",
+    "firebase_url": "https://midlaj-9895f-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "midlaj-9895f",
     "storage_bucket": "midlaj-9895f.firebasestorage.app"
   },
@@ -12,7 +13,12 @@
           "package_name": "midlaj.com"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "492214147902-gg8bqmqrbrta833e2katrvgvthpgmt9l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAbIhY1B-qy8AZqXSNlAEe0lsspiHm86X0"
@@ -20,7 +26,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "492214147902-gg8bqmqrbrta833e2katrvgvthpgmt9l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

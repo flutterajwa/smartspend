@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import '../data/models/transaction_model.dart';
 import '../data/models/budget_model.dart';
 import '../data/models/debt_model.dart';
+import '../data/models/recurring_transaction_model.dart';
 
 class LocalDB {
   static Database? _database;
@@ -19,7 +20,7 @@ class LocalDB {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 7,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS transactions (
@@ -57,6 +58,40 @@ class LocalDB {
               settledDate TEXT
             )
           ''');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS recurring_transactions (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            amount REAL,
+            category TEXT,
+            type TEXT,
+            startDate TEXT,
+            frequency TEXT,
+            isActive INTEGER,
+            lastExecutedDate TEXT,
+            paymentMethod TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS categories (
+            name TEXT PRIMARY KEY,
+            icon INTEGER,
+            color INTEGER
+          )
+        ''');
+        
+        final defaults = [
+          {'name': 'Food', 'icon': 0xe52a, 'color': 0xFFFF9800},
+          {'name': 'Travel', 'icon': 0xe1d1, 'color': 0xFF2196F3},
+          {'name': 'Bills', 'icon': 0xf00b0, 'color': 0xFFF44336},
+          {'name': 'Shopping', 'icon': 0xf37f, 'color': 0xFF9C27B0},
+          {'name': 'Health', 'icon': 0xe3e7, 'color': 0xFF4CAF50},
+          {'name': 'Salary', 'icon': 0xf0074, 'color': 0xFF009688},
+          {'name': 'Others', 'icon': 0xe402, 'color': 0xFF9E9E9E},
+        ];
+        for (var c in defaults) {
+          await db.insert('categories', c);
+        }
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -99,6 +134,43 @@ class LocalDB {
           }
           if (!columnNames.contains('settledDate')) {
              await db.execute('ALTER TABLE debts ADD COLUMN settledDate TEXT');
+          }
+        }
+        if (oldVersion < 6) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS recurring_transactions (
+              id TEXT PRIMARY KEY,
+              title TEXT,
+              amount REAL,
+              category TEXT,
+              type TEXT,
+              startDate TEXT,
+              frequency TEXT,
+              isActive INTEGER,
+              lastExecutedDate TEXT,
+              paymentMethod TEXT
+            )
+          ''');
+        }
+        if (oldVersion < 7) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS categories (
+              name TEXT PRIMARY KEY,
+              icon INTEGER,
+              color INTEGER
+            )
+          ''');
+          final defaults = [
+            {'name': 'Food', 'icon': 0xe52a, 'color': 0xFFFF9800},
+            {'name': 'Travel', 'icon': 0xe1d1, 'color': 0xFF2196F3},
+            {'name': 'Bills', 'icon': 0xf00b0, 'color': 0xFFF44336},
+            {'name': 'Shopping', 'icon': 0xf37f, 'color': 0xFF9C27B0},
+            {'name': 'Health', 'icon': 0xe3e7, 'color': 0xFF4CAF50},
+            {'name': 'Salary', 'icon': 0xf0074, 'color': 0xFF009688},
+            {'name': 'Others', 'icon': 0xe402, 'color': 0xFF9E9E9E},
+          ];
+          for (var c in defaults) {
+            await db.insert('categories', c, conflictAlgorithm: ConflictAlgorithm.ignore);
           }
         }
       },
@@ -170,5 +242,56 @@ class LocalDB {
       where: 'id = ?', 
       whereArgs: [id]
     );
+  }
+
+  // Recurring Transactions DB Methods
+  static Future<void> insertRecurringTransaction(RecurringTransactionModel recurring) async {
+    final db = await database;
+    await db.insert('recurring_transactions', recurring.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  static Future<List<RecurringTransactionModel>> getRecurringTransactions() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('recurring_transactions');
+    return List.generate(maps.length, (i) => RecurringTransactionModel.fromMap(maps[i]));
+  }
+
+  static Future<void> deleteRecurringTransaction(String id) async {
+    final db = await database;
+    await db.delete('recurring_transactions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  static Future<void> updateRecurringTransaction(RecurringTransactionModel recurring) async {
+    final db = await database;
+    await db.update(
+      'recurring_transactions',
+      recurring.toMap(),
+      where: 'id = ?',
+      whereArgs: [recurring.id],
+    );
+  }
+
+  // Category DB Methods
+  static Future<List<Map<String, dynamic>>> getCategories() async {
+    final db = await database;
+    return await db.query('categories');
+  }
+
+  static Future<void> saveCategory(String name, int iconCode, int colorValue) async {
+    final db = await database;
+    await db.insert(
+      'categories',
+      {
+        'name': name,
+        'icon': iconCode,
+        'color': colorValue,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<void> deleteCategory(String name) async {
+    final db = await database;
+    await db.delete('categories', where: 'name = ?', whereArgs: [name]);
   }
 }
